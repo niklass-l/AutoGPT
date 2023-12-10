@@ -31,7 +31,8 @@ class WorkspaceSettings(SystemSettings):
 class SimpleWorkspace(Configurable, Workspace):
     default_settings = WorkspaceSettings(
         name="workspace",
-        description="The workspace is the root directory for all agent activity.",
+        description=
+        "The workspace is the root directory for all agent activity.",
         configuration=WorkspaceConfiguration(
             root="",
             parent="~/auto-gpt/agents",
@@ -127,18 +128,21 @@ class SimpleWorkspace(Configurable, Workspace):
             if null_byte in str(relative_path) or null_byte in str(root):
                 raise ValueError("embedded null byte")
 
-        if root is None:
+        if not restrict_to_root and Path(relative_path).is_absolute():
+            return Path(relative_path)
+
+        if not self.restrict_to_workspace or root is None:
             return Path(relative_path).resolve()
 
-        self._logger.debug(f"Resolving path '{relative_path}' in workspace '{root}'")
+        self._logger.debug(
+            f"Resolving path '{relative_path}' in workspace '{root}'")
         root, relative_path = Path(root).resolve(), Path(relative_path)
         self._logger.debug(f"Resolved root as '{root}'")
 
         if relative_path.is_absolute():
             raise ValueError(
                 f"Attempted to access absolute path '{relative_path}' "
-                f"in workspace '{root}'."
-            )
+                f"in workspace '{root}'.")
         full_path = root.joinpath(relative_path).resolve()
 
         self._logger.debug(f"Joined paths as '{full_path}'")
@@ -155,7 +159,8 @@ class SimpleWorkspace(Configurable, Workspace):
     ###################################
 
     @staticmethod
-    def setup_workspace(settings: "AgentSettings", logger: logging.Logger) -> Path:
+    def setup_workspace(settings: "AgentSettings",
+                        logger: logging.Logger) -> Path:
         workspace_parent = settings.workspace.configuration.parent
         workspace_parent = Path(workspace_parent).expanduser().resolve()
         workspace_parent.mkdir(parents=True, exist_ok=True)
@@ -170,9 +175,7 @@ class SimpleWorkspace(Configurable, Workspace):
         with (workspace_root / "agent_settings.json").open("w") as f:
             settings_json = settings.json(
                 encoder=lambda x: x.get_secret_value()
-                if isinstance(x, SecretField)
-                else x,
-            )
+                if isinstance(x, SecretField) else x, )
             f.write(settings_json)
 
         # TODO: What are all the kinds of logs we want here?
