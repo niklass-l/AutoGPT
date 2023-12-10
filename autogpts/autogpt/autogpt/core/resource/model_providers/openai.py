@@ -69,7 +69,8 @@ class OpenAIModelName(str, enum.Enum):
 
 
 OPEN_AI_EMBEDDING_MODELS = {
-    OpenAIModelName.ADA: EmbeddingModelInfo(
+    OpenAIModelName.ADA:
+    EmbeddingModelInfo(
         name=OpenAIModelName.ADA,
         service=ModelProviderService.EMBEDDING,
         provider_name=ModelProviderName.OPENAI,
@@ -78,7 +79,6 @@ OPEN_AI_EMBEDDING_MODELS = {
         embedding_dimensions=1536,
     ),
 }
-
 
 OPEN_AI_CHAT_MODELS = {
     info.name: info
@@ -157,7 +157,6 @@ for base, copies in chat_model_mapping.items():
         if copy.endswith(("-0301", "-0314")):
             copy_info.has_function_call_api = False
 
-
 OPEN_AI_MODELS = {
     **OPEN_AI_CHAT_MODELS,
     **OPEN_AI_EMBEDDING_MODELS,
@@ -173,23 +172,23 @@ class OpenAICredentials(ModelProviderCredentials):
 
     api_key: SecretStr = UserConfigurable(from_env="OPENAI_API_KEY")
     api_base: Optional[SecretStr] = UserConfigurable(
-        default=None, from_env="OPENAI_API_BASE_URL"
-    )
-    organization: Optional[SecretStr] = UserConfigurable(from_env="OPENAI_ORGANIZATION")
+        default=None, from_env="OPENAI_API_BASE_URL")
+    organization: Optional[SecretStr] = UserConfigurable(
+        from_env="OPENAI_ORGANIZATION")
 
     api_type: str = UserConfigurable(
         default="",
-        from_env=lambda: (
-            "azure"
-            if os.getenv("USE_AZURE") == "True"
-            else os.getenv("OPENAI_API_TYPE")
-        ),
+        from_env=lambda: ("azure" if os.getenv("USE_AZURE") == "True" else os.
+                          getenv("OPENAI_API_TYPE")),
     )
     api_version: str = UserConfigurable("", from_env="OPENAI_API_VERSION")
     azure_model_to_deploy_id_map: Optional[dict[str, str]] = None
 
     def get_api_access_kwargs(self, model: str = "") -> dict[str, str]:
-        credentials = {k: v for k, v in self.unmasked().items() if type(v) is str}
+        credentials = {
+            k: v
+            for k, v in self.unmasked().items() if type(v) is str
+        }
         if self.api_type == "azure" and model:
             azure_credentials = self._get_azure_access_kwargs(model)
             credentials.update(azure_credentials)
@@ -200,19 +199,20 @@ class OpenAICredentials(ModelProviderCredentials):
             config_params = yaml.load(file, Loader=yaml.FullLoader) or {}
 
         try:
-            assert (
-                azure_api_base := config_params.get("azure_api_base", "")
-            ) != "", "Azure API base URL not set"
+            assert (azure_api_base :=
+                    config_params.get("azure_api_base",
+                                      "")) != "", "Azure API base URL not set"
             assert config_params.get(
-                "azure_model_map", {}
-            ), "Azure model->deployment_id map is empty"
+                "azure_model_map",
+                {}), "Azure model->deployment_id map is empty"
         except AssertionError as e:
             raise ValueError(*e.args)
 
         self.api_base = SecretStr(azure_api_base)
         self.api_type = config_params.get("azure_api_type", "azure")
         self.api_version = config_params.get("azure_api_version", "")
-        self.azure_model_to_deploy_id_map = config_params.get("azure_model_map")
+        self.azure_model_to_deploy_id_map = config_params.get(
+            "azure_model_map")
 
     def _get_azure_access_kwargs(self, model: str) -> dict[str, str]:
         """Get the kwargs for the Azure API."""
@@ -221,7 +221,8 @@ class OpenAICredentials(ModelProviderCredentials):
             raise ValueError("Azure model deployment map not configured")
 
         if model not in self.azure_model_to_deploy_id_map:
-            raise ValueError(f"No Azure deployment ID configured for model '{model}'")
+            raise ValueError(
+                f"No Azure deployment ID configured for model '{model}'")
         deployment_id = self.azure_model_to_deploy_id_map[model]
 
         if model in OPEN_AI_EMBEDDING_MODELS:
@@ -241,15 +242,12 @@ class OpenAISettings(ModelProviderSettings):
     budget: OpenAIModelProviderBudget
 
 
-class OpenAIProvider(
-    Configurable[OpenAISettings], ChatModelProvider, EmbeddingModelProvider
-):
+class OpenAIProvider(Configurable[OpenAISettings], ChatModelProvider,
+                     EmbeddingModelProvider):
     default_settings = OpenAISettings(
         name="openai_provider",
         description="Provides access to OpenAI's API.",
-        configuration=OpenAIConfiguration(
-            retries_per_request=10,
-        ),
+        configuration=OpenAIConfiguration(retries_per_request=10, ),
         credentials=None,
         budget=OpenAIModelProviderBudget(
             total_budget=math.inf,
@@ -327,8 +325,7 @@ class OpenAIProvider(
             raise NotImplementedError(
                 f"count_message_tokens() is not implemented for model {model_name}.\n"
                 " See https://github.com/openai/openai-python/blob/main/chatml.md for"
-                " information on how messages are converted to tokens."
-            )
+                " information on how messages are converted to tokens.")
         try:
             encoding = tiktoken.encoding_for_model(encoding_model)
         except KeyError:
@@ -351,13 +348,15 @@ class OpenAIProvider(
         self,
         model_prompt: list[ChatMessage],
         model_name: OpenAIModelName,
-        completion_parser: Callable[[AssistantChatMessageDict], _T] = lambda _: None,
+        completion_parser: Callable[[AssistantChatMessageDict],
+                                    _T] = lambda _: None,
         functions: Optional[list[CompletionModelFunction]] = None,
         **kwargs,
     ) -> ChatModelResponse[_T]:
         """Create a completion using the OpenAI API."""
 
-        completion_kwargs = self._get_completion_kwargs(model_name, functions, **kwargs)
+        completion_kwargs = self._get_completion_kwargs(
+            model_name, functions, **kwargs)
         tool_calls_compat_mode = functions and "tools" not in completion_kwargs
         if "messages" in completion_kwargs:
             model_prompt += completion_kwargs["messages"]
@@ -376,8 +375,7 @@ class OpenAIProvider(
         response_message = response.choices[0].message.to_dict_recursive()
         if tool_calls_compat_mode:
             response_message["tool_calls"] = _tool_calls_compat_extract_calls(
-                response_message["content"]
-            )
+                response_message["content"])
         response = ChatModelResponse(
             response=response_message,
             parsed_result=completion_parser(response_message),
@@ -433,14 +431,17 @@ class OpenAIProvider(
 
         if functions:
             if OPEN_AI_CHAT_MODELS[model_name].has_function_call_api:
-                completion_kwargs["tools"] = [
-                    {"type": "function", "function": f.schema} for f in functions
-                ]
+                completion_kwargs["tools"] = [{
+                    "type": "function",
+                    "function": f.schema
+                } for f in functions]
                 if len(functions) == 1:
                     # force the model to call the only specified function
                     completion_kwargs["tool_choice"] = {
                         "type": "function",
-                        "function": {"name": functions[0].name},
+                        "function": {
+                            "name": functions[0].name
+                        },
                     }
             else:
                 # Provide compatibility with older models
@@ -503,9 +504,8 @@ async def _create_embedding(text: str, *_, **kwargs) -> openai.Embedding:
     )
 
 
-async def _create_chat_completion(
-    messages: list[ChatMessage], *_, **kwargs
-) -> openai.Completion:
+async def _create_chat_completion(messages: list[ChatMessage], *_,
+                                  **kwargs) -> openai.Completion:
     """Create a chat completion using the OpenAI API.
 
     Args:
@@ -518,8 +518,10 @@ async def _create_chat_completion(
         message.dict(include={"role", "content", "tool_calls", "name"})
         for message in messages
     ]
+
     return await openai.ChatCompletion.acreate(
         messages=raw_messages,
+        response_format={"type": "json_object"},
         **kwargs,
     )
 
@@ -559,11 +561,12 @@ class _OpenAIRetryHandler:
             self._warn_user = False
 
     def _backoff(self, attempt: int) -> None:
-        backoff = self._backoff_base ** (attempt + 2)
+        backoff = self._backoff_base**(attempt + 2)
         self._logger.debug(self._backoff_msg.format(backoff=backoff))
         time.sleep(backoff)
 
     def __call__(self, func: Callable[_P, _T]) -> Callable[_P, _T]:
+
         @functools.wraps(func)
         async def _wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
             num_attempts = self._num_retries + 1  # +1 for the first attempt
@@ -586,8 +589,7 @@ class _OpenAIRetryHandler:
 
 
 def format_function_specs_as_typescript_ns(
-    functions: list[CompletionModelFunction],
-) -> str:
+    functions: list[CompletionModelFunction], ) -> str:
     """Returns a function signature block in the format used by OpenAI internally:
     https://community.openai.com/t/how-to-calculate-the-tokens-when-using-function-call/266573/18
 
@@ -609,10 +611,9 @@ def format_function_specs_as_typescript_ns(
     """
 
     return (
-        "namespace functions {\n\n"
-        + "\n\n".join(format_openai_function_for_prompt(f) for f in functions)
-        + "\n\n} // namespace functions"
-    )
+        "namespace functions {\n\n" +
+        "\n\n".join(format_openai_function_for_prompt(f)
+                    for f in functions) + "\n\n} // namespace functions")
 
 
 def format_openai_function_for_prompt(func: CompletionModelFunction) -> str:
@@ -635,28 +636,23 @@ def format_openai_function_for_prompt(func: CompletionModelFunction) -> str:
             f"// {spec.description}\n" if spec.description else ""
         ) + f"{name}{'' if spec.required else '?'}: {spec.typescript_type},"
 
-    return "\n".join(
-        [
-            f"// {func.description}",
-            f"type {func.name} = (_ :{{",
-            *[param_signature(name, p) for name, p in func.parameters.items()],
-            "}) => any;",
-        ]
-    )
+    return "\n".join([
+        f"// {func.description}",
+        f"type {func.name} = (_ :{{",
+        *[param_signature(name, p) for name, p in func.parameters.items()],
+        "}) => any;",
+    ])
 
 
-def count_openai_functions_tokens(
-    functions: list[CompletionModelFunction], count_tokens: Callable[[str], int]
-) -> int:
+def count_openai_functions_tokens(functions: list[CompletionModelFunction],
+                                  count_tokens: Callable[[str], int]) -> int:
     """Returns the number of tokens taken up by a set of function definitions
 
     Reference: https://community.openai.com/t/how-to-calculate-the-tokens-when-using-function-call/266573/18  # noqa: E501
     """
-    return count_tokens(
-        "# Tools\n\n"
-        "## functions\n\n"
-        f"{format_function_specs_as_typescript_ns(functions)}"
-    )
+    return count_tokens("# Tools\n\n"
+                        "## functions\n\n"
+                        f"{format_function_specs_as_typescript_ns(functions)}")
 
 
 def _functions_compat_fix_kwargs(
@@ -667,12 +663,14 @@ def _functions_compat_fix_kwargs(
     function_call_schema = JSONSchema(
         type=JSONSchema.Type.OBJECT,
         properties={
-            "name": JSONSchema(
+            "name":
+            JSONSchema(
                 description="The name of the function to call",
                 enum=[f.name for f in functions],
                 required=True,
             ),
-            "arguments": JSONSchema(
+            "arguments":
+            JSONSchema(
                 description="The arguments for the function call",
                 type=JSONSchema.Type.OBJECT,
                 required=True,
@@ -703,12 +701,12 @@ def _functions_compat_fix_kwargs(
             " and include its fences if it is not the only content.\n\n"
             "## functions\n\n"
             "For the function call itself, use one of the following"
-            f" functions:\n\n{function_definitions}"
-        ),
+            f" functions:\n\n{function_definitions}"),
     ]
 
 
-def _tool_calls_compat_extract_calls(response: str) -> list[AssistantToolCallDict]:
+def _tool_calls_compat_extract_calls(
+        response: str) -> list[AssistantToolCallDict]:
     import json
     import re
 
@@ -717,7 +715,8 @@ def _tool_calls_compat_extract_calls(response: str) -> list[AssistantToolCallDic
     if response[0] == "[":
         tool_calls: list[AssistantToolCallDict] = json.loads(response)
     else:
-        block = re.search(r"```(?:tool_calls)?\n(.*)\n```\s*$", response, re.DOTALL)
+        block = re.search(r"```(?:tool_calls)?\n(.*)\n```\s*$", response,
+                          re.DOTALL)
         if not block:
             raise ValueError("Could not find tool calls block in response")
         tool_calls: list[AssistantToolCallDict] = json.loads(block.group(1))
